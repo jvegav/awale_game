@@ -118,6 +118,7 @@ int main() {
             }
 
             for(int s = seeds; s>0; s--){
+                
 
                 if(s ==1 && index_j ==0 && (0 < matrix[index_j][index] && matrix[index_j][index] < 3)){
                     printf("----------------------------------------------------------------------------------------\n");

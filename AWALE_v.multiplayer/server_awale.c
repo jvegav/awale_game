@@ -168,15 +168,15 @@ static int handle_create_game(int conn_idx) {
     char reply[128];
     snprintf(reply, sizeof(reply), "Sala creada. ID: %d \n", r->id);
     write_client(clients[conn_idx].sock, reply);
-    write_client(clients[conn_idx].sock,"\nVous êtes dans la salle.\n Pour commencer à jouer : tapez /play\n Pour quitter la salle : /leave\n");
+   write_client(clients[conn_idx].sock,
+        "\nSala creada. Esperando a otro jugador para comenzar...\n"
+        "Para salir de la sala: /leave\n");
     return r->id;
 }
 
-
-
 static void send_board_to_room(GameRoom *r) {
-    char base_header[256];
-    char board[512];
+    char base_header[1024];
+    char board[1024];
 
     // Header con puntajes
     snprintf(base_header, sizeof(base_header),
@@ -186,52 +186,48 @@ static void send_board_to_room(GameRoom *r) {
         r->score1, r->score2
     );
 
-    /* ----- JUGADOR 1 ----- */
+    // --- Jugador 1 ---
     if (r->player_count >= 1) {
-        char msg1[1024];
+        char msg1[1200];
+        msg1[0] = '\0';                  // limpiar buffer
         strcpy(msg1, base_header);
-
-        // Convertir la matriz para la vista del jugador 1
         matrix_to_string_joueur1(r->matrix, board);
+        board[sizeof(board)-1] = '\0';   // asegurar null-termination
         strcat(msg1, board);
 
-        if (r->turn == 1) {
+        if (r->turn == 1)
             strcat(msg1, "\nC'est TON tour! Choisis une colonne (1-6):\n");
-        } else {
+        else
             strcat(msg1, "\nEn attente... C'est le tour du Joueur 2.\n");
-        }
 
         write_client(r->players[0].sock, msg1);
     }
 
-
-    /* ----- JUGADOR 2 ----- */
-    if (r->player_count >= 2) {
-        char msg2[1024];
+    // --- Jugador 2 ---
+    if (r->player_count == 2) {
+        char msg2[1200];
+        msg2[0] = '\0';
         strcpy(msg2, base_header);
-
-        // Convertir la matriz para la vista del jugador 2
         matrix_to_string_joueur2(r->matrix, board);
+        board[sizeof(board)-1] = '\0';
         strcat(msg2, board);
 
-        if (r->turn == 2) {
+        if (r->turn == 2)
             strcat(msg2, "\nC'est TON tour! Choisis une colonne (1-6):\n");
-        } else {
+        else
             strcat(msg2, "\nEn attente... C'est le tour du Joueur 1.\n");
-        }
 
         write_client(r->players[1].sock, msg2);
     }
 
-
-    /* ----- ESPECTADORES ven todo normal (neutro o jugador 2 está bien) ----- */
+    // --- Espectadores ---
     if (r->spec_count > 0) {
         char specmsg[1200];
+        specmsg[0] = '\0';
         strcpy(specmsg, base_header);
-
-        matrix_to_string_joueur1(r->matrix, board);
+        matrix_to_string_joueur1(r->matrix, board); // vista neutral
+        board[sizeof(board)-1] = '\0';
         strcat(specmsg, board);
-
         strcat(specmsg, "\n(Mode spectateur)\n");
 
         for (int i = 0; i < r->spec_count; i++)
@@ -241,37 +237,55 @@ static void send_board_to_room(GameRoom *r) {
 
 
 
+
 static int handle_join_game(int conn_idx, int id) {
     int idx = find_room_by_id(id);
     if (idx == -1) {
-        write_client(clients[conn_idx].sock, "Sala no encontrada.\n ");
+        write_client(clients[conn_idx].sock, "Sala no encontrada.\n");
         return -1;
     }
+
     GameRoom *r = &rooms[idx];
     if (r->player_count >= 2) {
-        write_client(clients[conn_idx].sock, "Sala ya tiene 2 jugadores.\n ");
+        write_client(clients[conn_idx].sock, "Sala ya tiene 2 jugadores.\n");
         return -1;
     }
+
+    // Añadir jugador 2
     r->players[1] = (Client){ .sock = clients[conn_idx].sock };
     strncpy(r->players[1].name, clients[conn_idx].name, sizeof(r->players[1].name)-1);
-    r->players[1].name[sizeof(r->players[1].name)-1] = '\n';
+    r->players[1].name[sizeof(r->players[1].name)-1] = '\0';
     r->player_count = 2;
-    r->active = 2; // playing
-
+    r->active = 2; // jugando
 
     clients[conn_idx].room_id = r->id;
     clients[conn_idx].role = ROLE_PLAYER2;
 
+    // Activar in_play_mode para ambos jugadores
+    for (int k = 0; k < r->player_count; k++) {
+        int idxc = find_conn_index_by_sock(r->players[k].sock);
+        if (idxc != -1) clients[idxc].in_play_mode = 1;
+    }
 
-    // Notify both players
+    // Notificar a ambos jugadores
     char msg[256];
-    snprintf(msg, sizeof(msg),"Jugador %.32s se ha unido. La partida empieza.", clients[conn_idx].name);
+    snprintf(msg, sizeof(msg), "Jugador %.32s se ha unido. La partida empieza.", clients[conn_idx].name);
     write_client(r->players[0].sock, msg);
     write_client(r->players[1].sock, msg);
 
+    // Mensaje de inicio de partida
+    for (int k = 0; k < 2; k++) {
+        write_client(r->players[k].sock,
+            "\n=== LA PARTIDA COMIENZA ===\n"
+            "Para salir de la partida y volver al menú: /q\n");
+    }
 
-    // send initial board
-    write_client(clients[conn_idx].sock,"\nVous êtes dans la salle.\n Pour commencer à jouer : tapez /play\n Pour quitter la salle : /leave\n");
+    // Inicializar turno del jugador 1
+    r->turn = 1;
+
+    // Enviar tablero inicial
+    send_board_to_room(r);
+
     return r->id;
 }
 
@@ -303,174 +317,114 @@ static int handle_watch(int conn_idx, int id) {
 }
 
 
-
 static void process_text_message(int conn_idx, const char *txt) {
 
-    while (*txt == ' ') txt++;
-    if (*txt == '\n') return;
+    char line[BUF_SIZE];
+    strncpy(line, txt, sizeof(line)-1);
+    line[sizeof(line)-1] = '\0';       // asegurar null-termination
 
-    // Commands
-    if (txt[0] == '/') {
+    // trim inicio
+    while (*line == ' ') memmove(line, line+1, strlen(line));
 
-        if (strncmp(txt, "/create_game", 12) == 0) {
+    if (*line == '\0' || *line == '\n') return;
+
+    // ---- COMANDOS ----
+    if (line[0] == '/') {
+
+        if (strncmp(line, "/create_game", 12) == 0) {
             handle_create_game(conn_idx);
             clients[conn_idx].in_play_mode = 0;
             return;
         }
-        else if (strncmp(txt, "/join_game", 10) == 0) {
-            int id = atoi(txt + 11);
+        else if (strncmp(line, "/join_game", 10) == 0) {
+            int id = atoi(line + 11);
             handle_join_game(conn_idx, id);
             clients[conn_idx].in_play_mode = 0;
             return;
         }
-        else if (strncmp(txt, "/watch", 6) == 0) {
-            int id = atoi(txt + 7);
+        else if (strncmp(line, "/watch", 6) == 0) {
+            int id = atoi(line + 7);
             handle_watch(conn_idx, id);
             clients[conn_idx].in_play_mode = 0;
             return;
         }
-        else if (strncmp(txt, "/play", 5) == 0) {
-            int rid = clients[conn_idx].room_id;
-            if (rid == -1) {
-                write_client(clients[conn_idx].sock, "Vous n'êtes pas dans une salle.\n");
-                return;
-            }
-
-            if (clients[conn_idx].role != ROLE_PLAYER1 && clients[conn_idx].role != ROLE_PLAYER2) {
-                write_client(clients[conn_idx].sock, "Vous êtes spectateur. Vous ne pouvez pas jouer.\n");
-                return;
-            }
-
-            clients[conn_idx].in_play_mode = 1;
-
-            write_client(clients[conn_idx].sock,
-                "\n=== MODE DE JEU ACTIVÉ ===\n"
-                "Pour jouer : entrez un numéro de colonne (1-6)\n"
-                "Pour quitter le mode de jeu : /q\n"
-            );
-
-            // mostrar tablero inmediatamente
-            int rindex = find_room_by_id(rid);
-            if (rindex != -1) send_board_to_room(&rooms[rindex]);
-            return;
-        }
-        else if (strncmp(txt, "/q", 2) == 0) {
+        else if (strncmp(line, "/q", 2) == 0) {
+            handle_leave(conn_idx);
             clients[conn_idx].in_play_mode = 0;
-            write_client(clients[conn_idx].sock,
-                "\n=== MODE DE JEU QUITTÉ ===\n"
-                "Vous restez dans la salle.\n"
-                "Pour rejouer : /play\n"
-            );
+            write_client(clients[conn_idx].sock, "Has vuelto al menú.\n");
             return;
         }
-        else if (strncmp(txt, "/list", 5) == 0) {
-            char buf[8001];
+        else if (strncmp(line, "/list", 5) == 0) {
+            char buf[1024];
             int off = 0;
             off += snprintf(buf + off, sizeof(buf) - off, "Salles actives:\n");
-            for (int i = 0; i < MAX_GAMES; ++i) if (rooms[i].active) {
-                off += snprintf(buf + off, sizeof(buf) - off, "ID %d - Joueurs: %d - Spectateurs: %d\n", 
+            for (int i = 0; i < MAX_GAMES; ++i)
+                if (rooms[i].active)
+                    off += snprintf(buf + off, sizeof(buf) - off,
+                                    "ID %d - Joueurs: %d - Spectateurs: %d\n",
                                     rooms[i].id, rooms[i].player_count, rooms[i].spec_count);
-            }
             write_client(clients[conn_idx].sock, buf);
             return;
         }
-        else if (strncmp(txt, "/play", 5) == 0) {
-
-            int rid = clients[conn_idx].room_id;
-            if (rid == -1) {
-                write_client(clients[conn_idx].sock,
-                    "\n-------------------------------------\n"
-                    "No estás en ninguna sala.\n"
-                    "Usa /create_game o /join_game <id>\n"
-                    "-------------------------------------\n");
-                return;
-            }
-
-            int rindex = find_room_by_id(rid);
-            GameRoom *r = &rooms[rindex];
-
-            if (clients[conn_idx].role != ROLE_PLAYER1 && clients[conn_idx].role != ROLE_PLAYER2) {
-                write_client(clients[conn_idx].sock,
-                    "\n-------------------------------------\n"
-                    "Eres espectador.\n"
-                    "Solo los jugadores pueden usar /play.\n"
-                    "-------------------------------------\n");
-                return;
-            }
-
-            // Mostrar primer tablero después de /play
-            write_client(clients[conn_idx].sock,
-                "\n-------------------------------------\n"
-                "La partie commence !\n"
-                "-------------------------------------\n");
-
-            send_board_to_room(r);
-            return;
-        }
-        else if (strncmp(txt, "/leave", 6) == 0) {
+        else if (strncmp(line, "/leave", 6) == 0) {
             handle_leave(conn_idx);
             return;
         }
-
         else {
             write_client(clients[conn_idx].sock,
-                "Commande inconnue. Commandes disponibles:\n"
-                "/create_game, /join_game <id>, /watch <id>, /list, /play, /q\n");
+                "Commande inconnue. Comandos: /create_game, /join_game <id>, /watch <id>, /list, /q\n");
             return;
         }
     }
 
-    // If message is NOT a command, only allow game moves if in play mode
-    if (!clients[conn_idx].in_play_mode) {
-        write_client(clients[conn_idx].sock,
-            "Vous êtes en mode menu.\n"
-            "Pour jouer : /play\n");
-        return;
-    }
-
-    // --- MOVES ---
+    // ---- MOVIMIENTOS ----
     int rid = clients[conn_idx].room_id;
     if (rid == -1) {
-        write_client(clients[conn_idx].sock, "Vous n'êtes pas dans une salle.\n");
+        write_client(clients[conn_idx].sock, "No estás en ninguna sala.\n");
         return;
     }
+
     int rindex = find_room_by_id(rid);
-    if (rindex == -1) { write_client(clients[conn_idx].sock, "Salle non trouvée.\n"); return; }
+    if (rindex == -1) { write_client(clients[conn_idx].sock, "Sala no encontrada.\n"); return; }
 
     GameRoom *r = &rooms[rindex];
+
     if (clients[conn_idx].role != ROLE_PLAYER1 && clients[conn_idx].role != ROLE_PLAYER2) {
-        write_client(clients[conn_idx].sock, "Vous êtes spectateur. Vous ne pouvez pas jouer.\n");
+        write_client(clients[conn_idx].sock, "Eres espectador. No puedes jugar.\n");
         return;
     }
 
     int player_num = (clients[conn_idx].role == ROLE_PLAYER1) ? 1 : 2;
     if (r->turn != player_num) {
-        write_client(clients[conn_idx].sock, "Pas votre tour. Veuillez attendre.\n");
+        write_client(clients[conn_idx].sock, "No es tu turno. Espera.\n");
         return;
     }
 
-    int move = atoi(txt);
+    int move = atoi(line);
     if (move < 1 || move > 6) {
-        write_client(clients[conn_idx].sock, "Mouvement invalide. Tapez un numéro entre 1 et 6.\n");
+        write_client(clients[conn_idx].sock, "Movimiento inválido (1-6).\n");
         return;
     }
 
-    int ok = process_move(r->matrix, player_num, move, &r->score1, &r->score2);
-    if (!ok) {
-        write_client(clients[conn_idx].sock, "Mouvement illégal selon les règles.\n");
+    if (!process_move(r->matrix, player_num, move, &r->score1, &r->score2)) {
+        write_client(clients[conn_idx].sock, "Movimiento ilegal según reglas.\n");
         return;
     }
 
+    // cambiar turno
     r->turn = (r->turn == 1) ? 2 : 1;
     send_board_to_room(r);
 
     if (!can_play(r->matrix)) {
         char endmsg[256];
-        snprintf(endmsg, sizeof(endmsg), "=== FIN DE LA PARTIE === Score J1: %d | Score J2: %d\n", r->score1, r->score2);
+        snprintf(endmsg, sizeof(endmsg),
+                 "=== FIN DE LA PARTIDA === Score J1: %d | Score J2: %d\n",
+                 r->score1, r->score2);
         broadcast_to_room(r, endmsg);
         close_room(rindex);
     }
 }
+
 
 
 

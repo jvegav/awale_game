@@ -5,11 +5,11 @@
 void init_game(int matrix[ROWS][COLS]) {
     for (int i = 0; i < ROWS; i++)
         for (int j = 0; j < COLS; j++)
-            matrix[i][j] = 4;
+            matrix[i][j] = 1;
 }
 
 void matrix_to_string_joueur1(int m[ROWS][COLS], char *output) {
-    char buf[3001];
+    char buf[1024];
     output[0] = '\0';
     strcat(output, "\n");
     for (int i = 0; i < ROWS; i++) {
@@ -22,7 +22,7 @@ void matrix_to_string_joueur1(int m[ROWS][COLS], char *output) {
 }
 
 void matrix_to_string_joueur2(int m[ROWS][COLS], char *output) {
-    char buf[3001];
+    char buf[1024];
     output[0] = '\0';
     for (int i = 1; i >= 0; i--) {
         for (int j = COLS - 1; j >= 0; j--) {

@@ -16,6 +16,7 @@ static void send_board_to_clients(Client clients[2], int matrix[2][6], int turn,
         strcat(msg, "\nC'est le tour du Joueur 1\n");
         matrix_to_string_joueur1(matrix, board);
         strcat(msg, board);
+        strcat(msg, "\nChoisis une colonne (1-6): \n");
         write_client(clients[0].sock, msg);
 
         strcpy(msg, "\nTour du Joueur 1  Attend \n");
@@ -26,6 +27,7 @@ static void send_board_to_clients(Client clients[2], int matrix[2][6], int turn,
         strcat(msg, "\nC'est le tour du Joueur 2\n");
         matrix_to_string_joueur2(matrix, board);
         strcat(msg, board);
+        strcat(msg, "\nChoisis une colonne (1-6): \n");
         write_client(clients[1].sock, msg);
 
         strcpy(msg, "\nTour du Joueur 2 Attend\n");
@@ -63,6 +65,8 @@ int main(void) {
     }
 
     // Juego principa
+
+    
 
     while (can_play(matrix)) {
         send_board_to_clients(clients, matrix, turn, score_j1, score_j2);

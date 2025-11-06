@@ -32,12 +32,12 @@ int main(int argc, char **argv) {
 
         // Si hay mensaje del servidor
         if (FD_ISSET(sock, &rdfs)) {
+            
             int n = read_server(sock, buffer);
             if (n == 0) {
                 printf("Serveur déconnecté.\n");
                 break;
             }
-            clean_space();
             printf("%s", buffer);
         }
 
@@ -45,6 +45,7 @@ int main(int argc, char **argv) {
         if (FD_ISSET(STDIN_FILENO, &rdfs)) {
             fgets(buffer, BUF_SIZE - 1, stdin);
             buffer[strcspn(buffer, "\n")] = 0;
+            clean_space();
             write_server(sock, buffer);
         }
     }

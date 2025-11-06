@@ -58,3 +58,11 @@ void write_server(SOCKET sock, const char *buffer)
         exit(errno);
     }
 }
+
+void clean_space(){
+    #ifdef _WIN32
+        system("cls");
+    #else
+        system("clear");
+    #endif
+}

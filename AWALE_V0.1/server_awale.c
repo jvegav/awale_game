@@ -18,7 +18,7 @@ static void send_board_to_clients(Client clients[2], int matrix[2][6], int turn,
         strcat(msg, board);
         write_client(clients[0].sock, msg);
 
-        strcpy(msg, "\nTour du Joueur 1 (vue adverse)\n");
+        strcpy(msg, "\nTour du Joueur 1  Attend \n");
         matrix_to_string_joueur2(matrix, board);
         strcat(msg, board);
         write_client(clients[1].sock, msg);
@@ -28,7 +28,7 @@ static void send_board_to_clients(Client clients[2], int matrix[2][6], int turn,
         strcat(msg, board);
         write_client(clients[1].sock, msg);
 
-        strcpy(msg, "\nTour du Joueur 2 (vue adverse)\n");
+        strcpy(msg, "\nTour du Joueur 2 Attend\n");
         matrix_to_string_joueur1(matrix, board);
         strcat(msg, board);
         write_client(clients[0].sock, msg);
@@ -62,10 +62,10 @@ int main(void) {
         printf("Joueur %d connecté: %s\n", actual, c.name);
     }
 
-    // Juego principal
-    send_board_to_clients(clients, matrix, turn, score_j1, score_j2);
+    // Juego principa
 
     while (can_play(matrix)) {
+        send_board_to_clients(clients, matrix, turn, score_j1, score_j2);
         Client current = (turn == 1) ? clients[0] : clients[1];
         Client opponent = (turn == 1) ? clients[1] : clients[0];
 
@@ -78,8 +78,7 @@ int main(void) {
             write_client(current.sock, "Coup invalide, réessaie.\n");
             continue;
         }
-
-        send_board_to_clients(clients, matrix, turn, score_j1, score_j2);
+        
         turn = (turn == 1) ? 2 : 1;
     }
 

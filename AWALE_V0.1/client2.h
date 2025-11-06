@@ -34,5 +34,6 @@ typedef struct
 SOCKET init_connection();
 int read_server(SOCKET sock, char *buffer);
 void write_server(SOCKET sock, const char *buffer);
+void clean_space();
 
 #endif /* CLIENT_H */

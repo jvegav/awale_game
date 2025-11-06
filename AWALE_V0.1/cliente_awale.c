@@ -37,6 +37,7 @@ int main(int argc, char **argv) {
                 printf("Serveur déconnecté.\n");
                 break;
             }
+            clean_space();
             printf("%s", buffer);
         }
 

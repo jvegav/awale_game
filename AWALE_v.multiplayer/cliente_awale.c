@@ -23,6 +23,7 @@ int main(int argc, char **argv) {
     }
 
     char buffer[BUF_SIZE];
+    memset(buffer, 0, sizeof(buffer));
     // send nickname to server
     write_server(sock, nick);
 
@@ -47,7 +48,7 @@ int main(int argc, char **argv) {
                 printf("Servidor desconectado.");
                 break;
             }
-            buffer[n] = '\n';
+            buffer[n] = '\0';
             printf("%s", buffer);
         }
 
@@ -56,7 +57,7 @@ int main(int argc, char **argv) {
             if (!fgets(buffer, sizeof(buffer), stdin)) break;
             // strip newline
             size_t L = strlen(buffer);
-            if (L > 0 && buffer[L-1] == '\n') buffer[L-1] = '\n';
+            if (L > 0 && buffer[L-1] == '\n') buffer[L-1] = '\0';
 
             // local handling for /quit
             if (strcmp(buffer, "/quit") == 0) {

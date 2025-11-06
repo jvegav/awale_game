@@ -175,10 +175,7 @@ static int handle_create_game(int conn_idx) {
 }
 
 static void send_board_to_room(GameRoom *r) {
-    char base_header[1024];
-    char board[1024];
-
-    // Header con puntajes
+    char base_header[256];
     snprintf(base_header, sizeof(base_header),
         "\n----------------------------------------\n"
         "SCORE\n Joueur 1: %d | Joueur 2: %d\n"
@@ -186,55 +183,53 @@ static void send_board_to_room(GameRoom *r) {
         r->score1, r->score2
     );
 
+    char board[1024];   // buffer temporal para matriz
+    char msg[2048];     // buffer final para enviar
+
     // --- Jugador 1 ---
     if (r->player_count >= 1) {
-        char msg1[1200];
-        msg1[0] = '\0';                  // limpiar buffer
-        strcpy(msg1, base_header);
-        matrix_to_string_joueur1(r->matrix, board);
-        board[sizeof(board)-1] = '\0';   // asegurar null-termination
-        strcat(msg1, board);
+        memset(board, 0, sizeof(board));
+        matrix_to_string_joueur1(r->matrix, board, sizeof(board));
 
-        if (r->turn == 1)
-            strcat(msg1, "\nC'est TON tour! Choisis une colonne (1-6):\n");
-        else
-            strcat(msg1, "\nEn attente... C'est le tour du Joueur 2.\n");
+        memset(msg, 0, sizeof(msg));
+        snprintf(msg, sizeof(msg), "%s%s%s",
+                 base_header,
+                 board,
+                 (r->turn == 1) ? "\nC'est TON tour! Choisis une colonne (1-6):\n"
+                                : "\nEn attente... C'est le tour du Joueur 2.\n");
 
-        write_client(r->players[0].sock, msg1);
+        write_client(r->players[0].sock, msg);
     }
 
     // --- Jugador 2 ---
     if (r->player_count == 2) {
-        char msg2[1200];
-        msg2[0] = '\0';
-        strcpy(msg2, base_header);
-        matrix_to_string_joueur2(r->matrix, board);
-        board[sizeof(board)-1] = '\0';
-        strcat(msg2, board);
+        memset(board, 0, sizeof(board));
+        matrix_to_string_joueur2(r->matrix, board, sizeof(board));
 
-        if (r->turn == 2)
-            strcat(msg2, "\nC'est TON tour! Choisis une colonne (1-6):\n");
-        else
-            strcat(msg2, "\nEn attente... C'est le tour du Joueur 1.\n");
+        memset(msg, 0, sizeof(msg));
+        snprintf(msg, sizeof(msg), "%s%s%s",
+                 base_header,
+                 board,
+                 (r->turn == 2) ? "\nC'est TON tour! Choisis une colonne (1-6):\n"
+                                : "\nEn attente... C'est le tour du Joueur 1.\n");
 
-        write_client(r->players[1].sock, msg2);
+        write_client(r->players[1].sock, msg);
     }
 
     // --- Espectadores ---
     if (r->spec_count > 0) {
-        char specmsg[1200];
-        specmsg[0] = '\0';
-        strcpy(specmsg, base_header);
-        matrix_to_string_joueur1(r->matrix, board); // vista neutral
-        board[sizeof(board)-1] = '\0';
-        strcat(specmsg, board);
-        strcat(specmsg, "\n(Mode spectateur)\n");
+        memset(board, 0, sizeof(board));
+        matrix_to_string_joueur1(r->matrix, board, sizeof(board)); // vista neutral
 
-        for (int i = 0; i < r->spec_count; i++)
-            write_client(r->spectators[i].sock, specmsg);
+        memset(msg, 0, sizeof(msg));
+        snprintf(msg, sizeof(msg), "%s%s\n(Mode spectateur)\n",
+                 base_header, board);
+
+        for (int i = 0; i < r->spec_count; i++) {
+            write_client(r->spectators[i].sock, msg);
+        }
     }
 }
-
 
 
 
@@ -320,6 +315,7 @@ static int handle_watch(int conn_idx, int id) {
 static void process_text_message(int conn_idx, const char *txt) {
 
     char line[BUF_SIZE];
+    memset(line, 0, sizeof(line));
     strncpy(line, txt, sizeof(line)-1);
     line[sizeof(line)-1] = '\0';       // asegurar null-termination
 

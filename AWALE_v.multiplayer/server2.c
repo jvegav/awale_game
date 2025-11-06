@@ -45,6 +45,7 @@ void end_connection(int sock)
 /* Lee un mensaje del cliente */
 int read_client(SOCKET sock, char *buffer)
 {
+    memset(buffer, 0, BUF_SIZE);
     int n = recv(sock, buffer, BUF_SIZE - 1, 0);
     if (n < 0) {
         perror("recv()");
@@ -54,13 +55,9 @@ int read_client(SOCKET sock, char *buffer)
     return n;
 }
 
-/* Envía un mensaje al cliente */
 void write_client(SOCKET sock, const char *buffer)
 {
-    char formatted[8048];
-    snprintf(formatted, sizeof(formatted),
-        "\n-------------------------------------\n%s\n", buffer);
-    if (send(sock, formatted, strlen(formatted), 0) < 0) {
+    if (send(sock, buffer, strlen(buffer), 0) < 0) {
         perror("send()");
     }
 }

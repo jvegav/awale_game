@@ -8,29 +8,33 @@ void init_game(int matrix[ROWS][COLS]) {
             matrix[i][j] = 1;
 }
 
-void matrix_to_string_joueur1(int m[ROWS][COLS], char *output) {
-    char buf[1024];
-    output[0] = '\0';
-    strcat(output, "\n");
+void matrix_to_string_joueur1(int m[ROWS][COLS], char *output, size_t size) {
+    int off = 0;
+    off += snprintf(output + off, size - off, "\n");
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLS; j++) {
-            sprintf(buf, "[%d] ", m[i][j]);
-            strcat(output, buf);
+            off += snprintf(output + off, size - off, "[%d] ", m[i][j]);
+            if (off >= (int)size) break;  // seguridad
         }
-        strcat(output, "\n");
+        off += snprintf(output + off, size - off, "\n");
+        if (off >= (int)size) break;
     }
+    output[size - 1] = '\0'; // asegurar null-termination
 }
 
-void matrix_to_string_joueur2(int m[ROWS][COLS], char *output) {
-    char buf[1024];
-    output[0] = '\0';
-    for (int i = 1; i >= 0; i--) {
+
+void matrix_to_string_joueur2(int m[ROWS][COLS], char *output, size_t size) {
+    int off = 0;
+    off += snprintf(output + off, size - off, "\n");
+    for (int i = ROWS - 1; i >= 0; i--) {
         for (int j = COLS - 1; j >= 0; j--) {
-            sprintf(buf, "[%d] ", m[i][j]);
-            strcat(output, buf);
+            off += snprintf(output + off, size - off, "[%d] ", m[i][j]);
+            if (off >= (int)size) break;  // seguridad
         }
-        strcat(output, "\n");
+        off += snprintf(output + off, size - off, "\n");
+        if (off >= (int)size) break;
     }
+    output[size - 1] = '\0';
 }
 
 int can_play(int matrix[ROWS][COLS]) {

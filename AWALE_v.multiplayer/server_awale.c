@@ -70,7 +70,7 @@ static void broadcast_to_room(GameRoom *r, const char *msg) {
 static void close_room(int ridx) {
     GameRoom *r = &rooms[ridx];
     // notify
-    broadcast_to_room(r, "La sala ha terminado.");
+    broadcast_to_room(r, "The room has ended.\n");
     // mark as free
     r->active = 0;
     r->player_count = 0;
@@ -84,30 +84,30 @@ void handle_leave(int conn_idx) {
 
     int room_id = clients[conn_idx].room_id;
     if (room_id == -1) {
-        write_client(clients[conn_idx].sock, "No estás en ninguna sala.\n");
+        write_client(clients[conn_idx].sock, "You are not in any room.\n");
         return;
     }
 
     int ridx = find_room_by_id(room_id);
     if (ridx == -1) {
         clients[conn_idx].room_id = -1;
-        write_client(clients[conn_idx].sock, "La sala ya no existe.\n");
+        write_client(clients[conn_idx].sock, "The room no longer exists.\n");
         return;
     }
 
     GameRoom *r = &rooms[ridx];
 
-    /* ---- Si era jugador ---- */
+    /* ---- If was a player ---- */
     for (int p = 0; p < r->player_count; ++p) {
         if (r->players[p].sock == clients[conn_idx].sock) {
 
-            write_client(clients[conn_idx].sock, "Has salido de la partida.\n");
+            write_client(clients[conn_idx].sock, "You have left the match.\n");
 
-            // Notificamos al otro jugador
+            // Notify the other player
             if (r->player_count == 2) {
                 int other = (p == 0 ? 1 : 0);
                 write_client(r->players[other].sock,
-                    "El otro jugador ha salido. La sala se cerrará.\n");
+                    "The other player has left. The room will close.\n");
             }
 
             close_room(ridx);
@@ -118,13 +118,13 @@ void handle_leave(int conn_idx) {
         }
     }
 
-    /* ---- Si era espectador ---- */
+    /* ---- If was a spectator ---- */
     for (int sp = 0; sp < r->spec_count; ++sp) {
         if (r->spectators[sp].sock == clients[conn_idx].sock) {
 
-            write_client(clients[conn_idx].sock, "Has dejado de observar la sala.\n");
+            write_client(clients[conn_idx].sock, "You have stopped watching the room.\n");
 
-            // Lo sacamos del array
+            // Remove from array
             for (int k = sp; k < r->spec_count - 1; ++k)
                 r->spectators[k] = r->spectators[k + 1];
 
@@ -134,9 +134,9 @@ void handle_leave(int conn_idx) {
         }
     }
 
-    // Caso raro: estaba en sala pero no como player ni spectator
+    // Strange case: was in room but not as player nor spectator
     clients[conn_idx].room_id = -1;
-    write_client(clients[conn_idx].sock, "Has salido de la sala.\n");
+    write_client(clients[conn_idx].sock, "You have left the room.\n");
 }
 
 
@@ -166,11 +166,11 @@ static int handle_create_game(int conn_idx) {
 
 
     char reply[128];
-    snprintf(reply, sizeof(reply), "Sala creada. ID: %d \n", r->id);
+    snprintf(reply, sizeof(reply), "Room created. ID: %d\n", r->id);
     write_client(clients[conn_idx].sock, reply);
    write_client(clients[conn_idx].sock,
-        "\nSala creada. Esperando a otro jugador para comenzar...\n"
-        "Para salir de la sala: /leave\n");
+        "\nRoom created. Waiting for another player to start...\n"
+        "To leave the room: /leave\n");
     return r->id;
 }
 
@@ -178,15 +178,15 @@ static void send_board_to_room(GameRoom *r) {
     char base_header[256];
     snprintf(base_header, sizeof(base_header),
         "\n----------------------------------------\n"
-        "SCORE\n Joueur 1: %d | Joueur 2: %d\n"
+        "SCORE\n Player 1: %d | Player 2: %d\n"
         "----------------------------------------\n",
         r->score1, r->score2
     );
 
-    char board[1024];   // buffer temporal para matriz
-    char msg[2048];     // buffer final para enviar
+    char board[1024];   // temporary buffer for matrix
+    char msg[2048];     // final buffer to send
 
-    // --- Jugador 1 ---
+    // --- Player 1 ---
     if (r->player_count >= 1) {
         memset(board, 0, sizeof(board));
         matrix_to_string_joueur1(r->matrix, board, sizeof(board));
@@ -195,13 +195,13 @@ static void send_board_to_room(GameRoom *r) {
         snprintf(msg, sizeof(msg), "%s%s%s",
                  base_header,
                  board,
-                 (r->turn == 1) ? "\nC'est TON tour! Choisis une colonne (1-6):\n"
-                                : "\nEn attente... C'est le tour du Joueur 2.\n");
+                 (r->turn == 1) ? "\nIt's YOUR turn! Choose a column (1-6):\n"
+                                : "\nWaiting... It's Player 2's turn.\n");
 
         write_client(r->players[0].sock, msg);
     }
 
-    // --- Jugador 2 ---
+    // --- Player 2 ---
     if (r->player_count == 2) {
         memset(board, 0, sizeof(board));
         matrix_to_string_joueur2(r->matrix, board, sizeof(board));
@@ -210,19 +210,19 @@ static void send_board_to_room(GameRoom *r) {
         snprintf(msg, sizeof(msg), "%s%s%s",
                  base_header,
                  board,
-                 (r->turn == 2) ? "\nC'est TON tour! Choisis une colonne (1-6):\n"
-                                : "\nEn attente... C'est le tour du Joueur 1.\n");
+                 (r->turn == 2) ? "\nIt's YOUR turn! Choose a column (1-6):\n"
+                                : "\nWaiting... It's Player 1's turn.\n");
 
         write_client(r->players[1].sock, msg);
     }
 
-    // --- Espectadores ---
+    // --- Spectators ---
     if (r->spec_count > 0) {
         memset(board, 0, sizeof(board));
-        matrix_to_string_joueur1(r->matrix, board, sizeof(board)); // vista neutral
+        matrix_to_string_joueur1(r->matrix, board, sizeof(board)); // neutral view
 
         memset(msg, 0, sizeof(msg));
-        snprintf(msg, sizeof(msg), "%s%s\n(Mode spectateur)\n",
+        snprintf(msg, sizeof(msg), "%s%s\n(Spectator mode)\n",
                  base_header, board);
 
         for (int i = 0; i < r->spec_count; i++) {
@@ -236,49 +236,49 @@ static void send_board_to_room(GameRoom *r) {
 static int handle_join_game(int conn_idx, int id) {
     int idx = find_room_by_id(id);
     if (idx == -1) {
-        write_client(clients[conn_idx].sock, "Sala no encontrada.\n");
+        write_client(clients[conn_idx].sock, "Room not found.\n");
         return -1;
     }
 
     GameRoom *r = &rooms[idx];
     if (r->player_count >= 2) {
-        write_client(clients[conn_idx].sock, "Sala ya tiene 2 jugadores.\n");
+        write_client(clients[conn_idx].sock, "Room already has 2 players.\n");
         return -1;
     }
 
-    // Añadir jugador 2
+    // Add player 2
     r->players[1] = (Client){ .sock = clients[conn_idx].sock };
     strncpy(r->players[1].name, clients[conn_idx].name, sizeof(r->players[1].name)-1);
     r->players[1].name[sizeof(r->players[1].name)-1] = '\0';
     r->player_count = 2;
-    r->active = 2; // jugando
+    r->active = 2; // playing
 
     clients[conn_idx].room_id = r->id;
     clients[conn_idx].role = ROLE_PLAYER2;
 
-    // Activar in_play_mode para ambos jugadores
+    // Enable in_play_mode for both players
     for (int k = 0; k < r->player_count; k++) {
         int idxc = find_conn_index_by_sock(r->players[k].sock);
         if (idxc != -1) clients[idxc].in_play_mode = 1;
     }
 
-    // Notificar a ambos jugadores
+    // Notify both players
     char msg[256];
-    snprintf(msg, sizeof(msg), "Jugador %.32s se ha unido. La partida empieza.", clients[conn_idx].name);
+    snprintf(msg, sizeof(msg), "Player %.32s has joined. The match is starting.\n", clients[conn_idx].name);
     write_client(r->players[0].sock, msg);
     write_client(r->players[1].sock, msg);
 
-    // Mensaje de inicio de partida
+    // Start message
     for (int k = 0; k < 2; k++) {
         write_client(r->players[k].sock,
-            "\n=== LA PARTIDA COMIENZA ===\n"
-            "Para salir de la partida y volver al menú: /q\n");
+            "\n=== THE MATCH BEGINS ===\n"
+            "To leave the match and return to the menu: /q\n");
     }
 
-    // Inicializar turno del jugador 1
+    // Initialize turn to player 1
     r->turn = 1;
 
-    // Enviar tablero inicial
+    // Send initial board
     send_board_to_room(r);
 
     return r->id;
@@ -288,12 +288,12 @@ static int handle_join_game(int conn_idx, int id) {
 static int handle_watch(int conn_idx, int id) {
     int idx = find_room_by_id(id);
     if (idx == -1) {
-        write_client(clients[conn_idx].sock, "Sala no encontrada.");
+        write_client(clients[conn_idx].sock, "Room not found.\n");
         return -1;
     }
     GameRoom *r = &rooms[idx];
     if (r->spec_count >= MAX_SPECTATORS) {
-        write_client(clients[conn_idx].sock, "Sala llena de espectadores.");
+        write_client(clients[conn_idx].sock, "Room is full of spectators.\n");
         return -1;
     }
     r->spectators[r->spec_count] = (Client){ .sock = clients[conn_idx].sock };
@@ -306,7 +306,7 @@ static int handle_watch(int conn_idx, int id) {
     clients[conn_idx].role = ROLE_SPECTATOR;
 
 
-    write_client(clients[conn_idx].sock, "Te has unido como espectador.");
+    write_client(clients[conn_idx].sock, "You have joined as a spectator.\n");
     send_board_to_room(r);
     return r->id;
 }
@@ -317,14 +317,14 @@ static void process_text_message(int conn_idx, const char *txt) {
     char line[BUF_SIZE];
     memset(line, 0, sizeof(line));
     strncpy(line, txt, sizeof(line)-1);
-    line[sizeof(line)-1] = '\0';       // asegurar null-termination
+    line[sizeof(line)-1] = '\0';       // ensure null-termination
 
-    // trim inicio
+    // trim start
     while (*line == ' ') memmove(line, line+1, strlen(line));
 
     if (*line == '\0' || *line == '\n') return;
 
-    // ---- COMANDOS ----
+    // ---- COMMANDS ----
     if (line[0] == '/') {
 
         if (strncmp(line, "/create_game", 12) == 0) {
@@ -347,17 +347,17 @@ static void process_text_message(int conn_idx, const char *txt) {
         else if (strncmp(line, "/q", 2) == 0) {
             handle_leave(conn_idx);
             clients[conn_idx].in_play_mode = 0;
-            write_client(clients[conn_idx].sock, "Has vuelto al menú.\n");
+            write_client(clients[conn_idx].sock, "You have returned to the menu.\n");
             return;
         }
         else if (strncmp(line, "/list", 5) == 0) {
             char buf[1024];
             int off = 0;
-            off += snprintf(buf + off, sizeof(buf) - off, "Salles actives:\n");
+            off += snprintf(buf + off, sizeof(buf) - off, "Active rooms:\n");
             for (int i = 0; i < MAX_GAMES; ++i)
                 if (rooms[i].active)
                     off += snprintf(buf + off, sizeof(buf) - off,
-                                    "ID %d - Joueurs: %d - Spectateurs: %d\n",
+                                    "ID %d - Players: %d - Spectators: %d\n",
                                     rooms[i].id, rooms[i].player_count, rooms[i].spec_count);
             write_client(clients[conn_idx].sock, buf);
             return;
@@ -366,55 +366,82 @@ static void process_text_message(int conn_idx, const char *txt) {
             handle_leave(conn_idx);
             return;
         }
+        else if (strncmp(line, "/users", 6) == 0) {
+            char list[1024];
+            int off = 0;
+            off += snprintf(list + off, sizeof(list) - off, "Online users:\n");
+            for (int i = 0; i < MAX_CLIENTS; ++i) {
+                if (clients[i].connected) {
+                    off += snprintf(list + off, sizeof(list) - off, "- %s\n", clients[i].name);
+                }
+            }
+            write_client(clients[conn_idx].sock, list);
+            return;
+        }
+        else if (strncmp(line, "/help", 6) == 0) {
+            char list[1024];
+            int off = 0;
+            off += snprintf(list + off, sizeof(list) - off, "Available commands:\n");
+            off += snprintf(list + off, sizeof(list) - off, "/create_game    - Create a new room and become Player 1.\n");
+            off += snprintf(list + off, sizeof(list) - off, "/join_game <id> - Join the room with ID <id> as Player 2.\n");
+            off += snprintf(list + off, sizeof(list) - off, "/watch <id>     - Join as a spectator (you cannot play).\n");
+            off += snprintf(list + off, sizeof(list) - off, "/list           - Show active rooms (ID, players, spectators).\n");
+            off += snprintf(list + off, sizeof(list) - off, "/q              - Leave the match and return to the menu.\n");
+            off += snprintf(list + off, sizeof(list) - off, "/leave          - Leave the current room (player or spectator).\n");
+            off += snprintf(list + off, sizeof(list) - off, "/users          - List connected users.\n");
+            off += snprintf(list + off, sizeof(list) - off, "/help           - Show this help with command descriptions.\n");
+            write_client(clients[conn_idx].sock, list);
+            return;
+        }
         else {
             write_client(clients[conn_idx].sock,
-                "Commande inconnue. Comandos: /create_game, /join_game <id>, /watch <id>, /list, /q\n");
+                "Unknown command. Commands: /create_game, /join_game <id>, /watch <id>, /list, /q, /users\n");
             return;
         }
     }
 
-    // ---- MOVIMIENTOS ----
+    // ---- MOVES ----
     int rid = clients[conn_idx].room_id;
     if (rid == -1) {
-        write_client(clients[conn_idx].sock, "No estás en ninguna sala.\n");
+        write_client(clients[conn_idx].sock, "You are not in any room.\n");
         return;
     }
 
     int rindex = find_room_by_id(rid);
-    if (rindex == -1) { write_client(clients[conn_idx].sock, "Sala no encontrada.\n"); return; }
+    if (rindex == -1) { write_client(clients[conn_idx].sock, "Room not found.\n"); return; }
 
     GameRoom *r = &rooms[rindex];
 
     if (clients[conn_idx].role != ROLE_PLAYER1 && clients[conn_idx].role != ROLE_PLAYER2) {
-        write_client(clients[conn_idx].sock, "Eres espectador. No puedes jugar.\n");
+        write_client(clients[conn_idx].sock, "You are a spectator. You cannot play.\n");
         return;
     }
 
     int player_num = (clients[conn_idx].role == ROLE_PLAYER1) ? 1 : 2;
     if (r->turn != player_num) {
-        write_client(clients[conn_idx].sock, "No es tu turno. Espera.\n");
+        write_client(clients[conn_idx].sock, "It's not your turn. Please wait.\n");
         return;
     }
 
     int move = atoi(line);
     if (move < 1 || move > 6) {
-        write_client(clients[conn_idx].sock, "Movimiento inválido (1-6).\n");
+        write_client(clients[conn_idx].sock, "Invalid move (1-6).\n");
         return;
     }
 
     if (!process_move(r->matrix, player_num, move, &r->score1, &r->score2)) {
-        write_client(clients[conn_idx].sock, "Movimiento ilegal según reglas.\n");
+        write_client(clients[conn_idx].sock, "Illegal move according to rules.\n");
         return;
     }
 
-    // cambiar turno
+    // change turn
     r->turn = (r->turn == 1) ? 2 : 1;
     send_board_to_room(r);
 
     if (!can_play(r->matrix)) {
         char endmsg[256];
         snprintf(endmsg, sizeof(endmsg),
-                 "=== FIN DE LA PARTIDA === Score J1: %d | Score J2: %d\n",
+                 "=== GAME OVER === Score P1: %d | Score P2: %d\n",
                  r->score1, r->score2);
         broadcast_to_room(r, endmsg);
         close_room(rindex);
@@ -427,18 +454,18 @@ static void process_text_message(int conn_idx, const char *txt) {
 
 int main(void) {
 
-    // inicializas arrays de maximo de juegos y de clientes
+    // initialize arrays for games and clients
     for (int i = 0; i < MAX_GAMES; ++i) rooms[i].active = 0;
     for (int i = 0; i < MAX_CLIENTS; ++i) clients[i].connected = 0;
 
-    // INICIAMOS LA CONEXION 
+    // START CONNECTION
     listen_sock = init_connection();
     if (listen_sock < 0) { 
         perror("init_connection"); return EXIT_FAILURE; 
     }
 
 
-    printf("Server Awalé  waiting...");
+    printf("Awale server waiting...\n");
 
     fd_set readfds;
     int maxfd = listen_sock;
@@ -448,7 +475,7 @@ int main(void) {
         FD_ZERO(&readfds);
         FD_SET(listen_sock, &readfds);
 
-        // Añadir clientes al conjunto
+        // Add clients to set
         for (int i = 0; i < MAX_CLIENTS; ++i) {
             if (clients[i].connected) {
                 FD_SET(clients[i].sock, &readfds);
@@ -463,7 +490,7 @@ int main(void) {
             break;
         }
 
-        /* ---- NUEVA CONEXIÓN ---- */
+        /* ---- NEW CONNECTION ---- */
         if (FD_ISSET(listen_sock, &readfds)) {
 
             struct sockaddr_in csin;
@@ -484,24 +511,24 @@ int main(void) {
                     int idx = register_new_conn(csock, namebuf);
 
                     if (idx == -1) {
-                        write_client(csock, "Servidor lleno.\n");
+                        write_client(csock, "Server full.\n");
                         closesocket(csock);
                     }
                     else {
                         char welcome[256];
                         snprintf(welcome, sizeof(welcome),
-                            "Bienvenido %s!\nComandos:\n"
-                            "/create_game\n/join_game <id>\n/watch <id>\n/list\n",
+                            "Welcome %s!\nCommands:\n"
+                            "/create_game\n/join_game <id>\n/watch <id>\n/list\n/q\n/users\n",
                             namebuf);
 
                         write_client(csock, welcome);
-                        printf("Nuevo cliente conectado: %s (sock=%d)\n", namebuf, csock);
+                        printf("New client connected: %s (sock=%d)\n", namebuf, csock);
                     }
                 }
             }
         }
 
-        /* ---- MENSAJES DE CLIENTES EXISTENTES ---- */
+        /* ---- MESSAGES FROM EXISTING CLIENTS ---- */
         for (int i = 0; i < MAX_CLIENTS; ++i) {
             if (!clients[i].connected) continue;
 
@@ -512,31 +539,31 @@ int main(void) {
                 char buf[BUF_SIZE];
                 int n = read_client(s, buf);
 
-                // Cliente desconectado
+                // Client disconnected
                 if (n <= 0) {
-                    printf("Cliente desconectado: %s\n", clients[i].name);
+                    printf("Client disconnected: %s\n", clients[i].name);
 
-                    // Si pertenece a una sala -> manejar abandono
+                    // If belonged to a room -> handle leaving
                     if (clients[i].room_id != -1) {
                         int ridx = find_room_by_id(clients[i].room_id);
 
                         if (ridx != -1) {
                             GameRoom *r = &rooms[ridx];
 
-                            // Si era jugador
+                            // If was a player
                             for (int p = 0; p < r->player_count; ++p) {
                                 if (r->players[p].sock == s) {
                                     if (r->player_count == 2) {
                                         int other_sock = r->players[1 - p].sock;
                                         write_client(other_sock,
-                                            "Tu oponente se ha desconectado. La sala se cerrará.\n");
+                                            "Your opponent has disconnected. The room will close.\n");
                                     }
                                     close_room(ridx);
                                     break;
                                 }
                             }
 
-                            // Si era espectador
+                            // If was a spectator
                             for (int sp = 0; sp < r->spec_count; ++sp) {
                                 if (r->spectators[sp].sock == s) {
                                     for (int k = sp; k < r->spec_count - 1; ++k)
@@ -551,8 +578,8 @@ int main(void) {
                     closesocket(s);
                     unregister_conn_by_index(i);
                 }
-                else { // Cliente envió texto
-                    buf[n] = '\0';  // ← muy importante
+                else { // Client sent text
+                    buf[n] = '\0';  // ← very important
                     process_text_message(i, buf);
                 }
             }

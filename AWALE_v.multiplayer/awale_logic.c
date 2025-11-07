@@ -5,7 +5,7 @@
 void init_game(int matrix[ROWS][COLS]) {
     for (int i = 0; i < ROWS; i++)
         for (int j = 0; j < COLS; j++)
-            matrix[i][j] = 1;
+            matrix[i][j] = 4;
 }
 
 void matrix_to_string_joueur1(int m[ROWS][COLS], char *output, size_t size) {

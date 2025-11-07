@@ -317,14 +317,12 @@ static void process_text_message(int conn_idx, const char *txt) {
     char line[BUF_SIZE];
     memset(line, 0, sizeof(line));
     strncpy(line, txt, sizeof(line)-1);
-    line[sizeof(line)-1] = '\0';       // ensure null-termination
+    line[sizeof(line)-1] = '\0';       
 
-    // trim start
     while (*line == ' ') memmove(line, line+1, strlen(line));
 
     if (*line == '\0' || *line == '\n') return;
 
-    // ---- COMMANDS ----
     if (line[0] == '/') {
 
         if (strncmp(line, "/create_game", 12) == 0) {
@@ -410,8 +408,8 @@ static void process_text_message(int conn_idx, const char *txt) {
 
             GameRoom *r = &rooms[rindex];
 
-            // Mostrar historial de chat
-            char buf[BUF_SIZE*2] = ""; // buffer para mostrar historial
+            
+            char buf[BUF_SIZE*2] = ""; 
             int start = r->chat_count > MAX_CHAT_MESSAGES ? r->chat_count - MAX_CHAT_MESSAGES : 0;
             for (int i = start; i < r->chat_count; ++i) {
                 strncat(buf, r->chat_history[i], sizeof(buf) - strlen(buf) - 1);
@@ -422,12 +420,12 @@ static void process_text_message(int conn_idx, const char *txt) {
             write_client(clients[conn_idx].sock, buf);
             write_client(clients[conn_idx].sock, "Type messages starting with '/msg ' to chat with the room.\n");
 
-            // Marcar al cliente en modo chat
-            clients[conn_idx].in_chat_mode = 1; // agrega este campo a Client
+            
+            clients[conn_idx].in_chat_mode = 1; 
             return;
         }
 
-        // ---- Para enviar mensajes al chat ----
+       
         else if (clients[conn_idx].in_chat_mode && strncmp(line, "/msg ", 5) == 0) {
             int rid = clients[conn_idx].room_id;
             if (rid == -1) return;
@@ -437,7 +435,6 @@ static void process_text_message(int conn_idx, const char *txt) {
 
             GameRoom *r = &rooms[rindex];
 
-            // Construir mensaje seguro
             #define CHAT_MSG_MAX 512
             char msg[CHAT_MSG_MAX + NAME_LEN + 10];
             char chat_text[CHAT_MSG_MAX+1];
@@ -658,7 +655,7 @@ int main(void) {
                     unregister_conn_by_index(i);
                 }
                 else { // Client sent text
-                    buf[n] = '\0';  // ← very important
+                    buf[n] = '\0'; 
                     process_text_message(i, buf);
                 }
             }

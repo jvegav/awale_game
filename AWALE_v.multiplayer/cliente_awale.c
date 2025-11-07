@@ -24,7 +24,6 @@ int main(int argc, char **argv) {
 
     char buffer[BUF_SIZE];
     memset(buffer, 0, sizeof(buffer));
-    // send nickname to server
     write_server(sock, nick);
 
     fd_set rdfs;
@@ -49,26 +48,26 @@ int main(int argc, char **argv) {
                 break;
             }
             buffer[n] = '\0';
-            printf("%s", buffer);
+            printf("%s \n ", buffer);
         }
 
         // entrada del usuario
         if (FD_ISSET(STDIN_FILENO, &rdfs)) {
+
             if (!fgets(buffer, sizeof(buffer), stdin)) break;
-            // strip newline
             size_t L = strlen(buffer);
             if (L > 0 && buffer[L-1] == '\n') buffer[L-1] = '\0';
 
-            // local handling for /quit
+            
             if (strcmp(buffer, "/quit") == 0) {
                 write_server(sock, "/quit");
                 break;
             }
 
-            // ignore empty lines
+           
             if (buffer[0] == '\n') continue;
 
-            // send whatever user typed to server (commands or moves)
+            
             write_server(sock, buffer);
         }
     }

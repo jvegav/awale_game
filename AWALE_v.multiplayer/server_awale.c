@@ -389,10 +389,89 @@ static void process_text_message(int conn_idx, const char *txt) {
             off += snprintf(list + off, sizeof(list) - off, "/q              - Leave the match and return to the menu.\n");
             off += snprintf(list + off, sizeof(list) - off, "/leave          - Leave the current room (player or spectator).\n");
             off += snprintf(list + off, sizeof(list) - off, "/users          - List connected users.\n");
+            off += snprintf(list + off, sizeof(list) - off, "/chat           - View the room chat history and enter chat mode.\n");
+            off += snprintf(list + off, sizeof(list) - off, "/msg <text>     - Send a message to everyone in your current room.\n");
             off += snprintf(list + off, sizeof(list) - off, "/help           - Show this help with command descriptions.\n");
             write_client(clients[conn_idx].sock, list);
             return;
         }
+        else if (strncmp(line, "/chat", 5) == 0) {
+            int rid = clients[conn_idx].room_id;
+            if (rid == -1) {
+                write_client(clients[conn_idx].sock, "You are not in a room.\n");
+                return;
+            }
+
+            int rindex = find_room_by_id(rid);
+            if (rindex == -1) {
+                write_client(clients[conn_idx].sock, "Room not found.\n");
+                return;
+            }
+
+            GameRoom *r = &rooms[rindex];
+
+            // Mostrar historial de chat
+            char buf[BUF_SIZE*2] = ""; // buffer para mostrar historial
+            int start = r->chat_count > MAX_CHAT_MESSAGES ? r->chat_count - MAX_CHAT_MESSAGES : 0;
+            for (int i = start; i < r->chat_count; ++i) {
+                strncat(buf, r->chat_history[i], sizeof(buf) - strlen(buf) - 1);
+                strncat(buf, "\n", sizeof(buf) - strlen(buf) - 1);
+            }
+
+            write_client(clients[conn_idx].sock, "=== Chat History ===\n");
+            write_client(clients[conn_idx].sock, buf);
+            write_client(clients[conn_idx].sock, "Type messages starting with '/msg ' to chat with the room.\n");
+
+            // Marcar al cliente en modo chat
+            clients[conn_idx].in_chat_mode = 1; // agrega este campo a Client
+            return;
+        }
+
+        // ---- Para enviar mensajes al chat ----
+        else if (clients[conn_idx].in_chat_mode && strncmp(line, "/msg ", 5) == 0) {
+            int rid = clients[conn_idx].room_id;
+            if (rid == -1) return;
+
+            int rindex = find_room_by_id(rid);
+            if (rindex == -1) return;
+
+            GameRoom *r = &rooms[rindex];
+
+            // Construir mensaje seguro
+            #define CHAT_MSG_MAX 512
+            char msg[CHAT_MSG_MAX + NAME_LEN + 10];
+            char chat_text[CHAT_MSG_MAX+1];
+
+            strncpy(chat_text, line + 5, CHAT_MSG_MAX);
+            chat_text[CHAT_MSG_MAX] = '\0';
+
+            char user_name[NAME_LEN];
+            strncpy(user_name, clients[conn_idx].name, NAME_LEN-1);
+            user_name[NAME_LEN-1] = '\0';
+
+            snprintf(msg, sizeof(msg), "[%s]: %s", user_name, chat_text);
+
+            // Guardar en historial
+            if (r->chat_count < MAX_CHAT_MESSAGES) {
+                strncpy(r->chat_history[r->chat_count], msg, sizeof(r->chat_history[0])-1);
+                r->chat_history[r->chat_count][sizeof(r->chat_history[0])-1] = '\0';
+                r->chat_count++;
+            } else {
+                // desplazamiento si se llena el historial
+                for (int i = 1; i < MAX_CHAT_MESSAGES; ++i)
+                    strncpy(r->chat_history[i-1], r->chat_history[i], sizeof(r->chat_history[0]));
+                strncpy(r->chat_history[MAX_CHAT_MESSAGES-1], msg, sizeof(r->chat_history[0])-1);
+                r->chat_history[MAX_CHAT_MESSAGES-1][sizeof(r->chat_history[0])-1] = '\0';
+            }
+
+            // Enviar a todos en la sala
+            for (int i = 0; i < r->player_count; ++i)
+                write_client(r->players[i].sock, msg);
+            for (int i = 0; i < r->spec_count; ++i)
+                write_client(r->spectators[i].sock, msg);
+        }
+
+
         else {
             write_client(clients[conn_idx].sock,
                 "Unknown command. Commands: /create_game, /join_game <id>, /watch <id>, /list, /q, /users\n");

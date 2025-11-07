@@ -27,6 +27,7 @@ typedef struct in_addr IN_ADDR;
 #define MAX_SPECTATORS 32
 #define NAME_LEN 64
 #define BUF_SIZE 8001
+#define MAX_CHAT_MESSAGES 10
 
 
 
@@ -41,6 +42,7 @@ typedef struct
     Role role;
     int connected;
     int in_play_mode;
+    int in_chat_mode;
 } Client;
 
 
@@ -54,6 +56,8 @@ typedef struct {
     int matrix[2][6];
     int score1, score2;
     int turn; // 1 or 2
+    char chat_history[MAX_CHAT_MESSAGES][BUF_SIZE];
+    int chat_count;
 } GameRoom;
 
 

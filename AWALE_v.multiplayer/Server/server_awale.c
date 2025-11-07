@@ -311,6 +311,15 @@ static int handle_watch(int conn_idx, int id) {
     return r->id;
 }
 
+static int player_name_invalid(const char *name) {
+    if (name == NULL) return 1;
+    size_t L = strlen(name);
+    if (L == 0 || L >= NAME_LEN) return 1;
+    for (int i = 0; i < MAX_CLIENTS; ++i) {
+        if (clients[i].connected && strcmp(clients[i].name, name) == 0) return 1;
+    }
+    return 0;
+}
 
 static void process_text_message(int conn_idx, const char *txt) {
 
@@ -580,7 +589,18 @@ int main(void) {
                 char namebuf[NAME_LEN];
                 int n = read_client(csock, namebuf);
 
-                if (n <= 0) {
+                if (player_name_invalid(namebuf))
+                {
+                    int code = rand() % 9000 + 1000;
+                    char temp[1024]; 
+                    snprintf(temp, sizeof(temp), "%s_%d", namebuf, code);
+                    strncpy(namebuf, temp, sizeof(namebuf) - 1);
+                    namebuf[sizeof(namebuf) - 1] = '\0';
+                }
+                
+
+
+                if (n <= 0 || player_name_invalid(namebuf)) {
                     closesocket(csock);
                 }
                 else {

@@ -348,18 +348,25 @@ static void process_text_message(int conn_idx, const char *txt) {
 
     if(clients[conn_idx].in_play_mode == 1){
 
-        
-        if (strncmp(line, "/leave", 6) == 0 || strncmp(line, "/q", 2) == 0) {
-            handle_leave(conn_idx);
-            clients[conn_idx].in_play_mode = 0;
-            write_client(clients[conn_idx].sock, "You have returned to the menu.\n");
-            return;
-        }
         int rid = clients[conn_idx].room_id;
         int rindex = find_room_by_id(rid);
         if (rindex == -1) { write_client(clients[conn_idx].sock, "Room not found.\n"); return; }
 
         GameRoom *r = &rooms[rindex];
+
+        
+        if (strncmp(line, "/leave", 6) == 0 || strncmp(line, "/q", 2) == 0) {
+            handle_leave(conn_idx);
+            int other_idx_sock = r->players[0].sock == clients[conn_idx].sock ? r->players[1].sock : r->players[0].sock;
+            int other_idx = find_conn_index_by_sock(other_idx_sock);
+            
+            if (other_idx != -1) clients[other_idx].in_play_mode = 0;
+            
+            write_client(clients[conn_idx].sock, "You have returned to the menu.\n");
+            write_client(clients[other_idx].sock, "You have returned to the menu.\n");
+            return;
+        }
+        
 
         if (r->player_count < 2) {
             write_client(clients[conn_idx].sock,

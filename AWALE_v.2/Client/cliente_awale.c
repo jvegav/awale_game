@@ -4,8 +4,70 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/select.h>
+#include <ncurses.h>
 
 #include "client2.h" 
+
+#define MAX_CHAT_LINES 100
+
+WINDOW *game_win, *chat_win, *write_win;
+char chat_history[MAX_CHAT_LINES][BUF_SIZE];
+int chat_count = 0;
+
+/* --- UI Setup --- */
+void init_ui() {
+    initscr();            // start ncurses mode
+    cbreak();             // disable line buffering
+    noecho();             // don’t echo input automatically
+    keypad(stdscr, TRUE); // enable arrow keys
+
+    int height = LINES;
+    int width = COLS;
+    int game_h = height * 6 / 12;
+    int chat_h = height * 4 / 12;
+    int write_h = height - game_h - chat_h;     // bottom 1/10 of screen
+
+    game_win = newwin(game_h, width, 0, 0);
+    chat_win = newwin(chat_h, width, game_h, 0);
+    write_win = newwin(write_h, width, game_h + chat_h, 0);
+
+    scrollok(chat_win, TRUE);
+    box(game_win, 0, 0);
+    box(chat_win, 0, 0);
+    box(write_win, 0, 0);
+
+    mvwprintw(game_win, 0, (width - 13) / 2, " AWALE-GAME ");
+    mvwprintw(chat_win, 0, (width - 6) / 2, " CHAT ");
+    mvwprintw(write_win, 1, 1, "> ");
+    wmove(write_win, 1, 3);  // Mover cursor después de "> "
+
+    wrefresh(game_win);
+    wrefresh(chat_win);
+    wrefresh(write_win);
+}
+
+
+void add_chat_message(const char *msg) {
+    if (chat_count < MAX_CHAT_LINES) {
+        strncpy(chat_history[chat_count++], msg, BUF_SIZE - 1);
+    } else {
+        // scroll up if full
+        for (int i = 1; i < MAX_CHAT_LINES; i++)
+            strcpy(chat_history[i - 1], chat_history[i]);
+        strncpy(chat_history[MAX_CHAT_LINES - 1], msg, BUF_SIZE - 1);
+    }
+}
+
+void refresh_chat_window() {
+    werase(chat_win);
+    box(chat_win, 0, 0);
+    mvwprintw(chat_win, 0, (COLS - 6) / 2, " CHAT ");
+    int start = chat_count > 10 ? chat_count - 10 : 0;
+    int y = 1;
+    for (int i = start; i < chat_count; i++)
+        mvwprintw(chat_win, y++, 2, "%s", chat_history[i]);
+    wrefresh(chat_win);
+}
 
 int main(int argc, char **argv) {
     if (argc < 3) {
@@ -24,10 +86,16 @@ int main(int argc, char **argv) {
 
     char buffer[BUF_SIZE];
     memset(buffer, 0, sizeof(buffer));
+
+    init_ui();
+    mvwprintw(game_win, 1, 2, "Connecté au serveur Awale comme %s", argv[2]);
+    wrefresh(game_win);
+
     write_server(sock, nick);
 
     fd_set rdfs;
 
+    char input[BUF_SIZE];
     while (1) {
         FD_ZERO(&rdfs);
         FD_SET(STDIN_FILENO, &rdfs);
@@ -44,31 +112,52 @@ int main(int argc, char **argv) {
         if (FD_ISSET(sock, &rdfs)) {
             int n = read_server(sock, buffer);
             if (n <= 0) {
-                printf("Servidor desconectado.");
+                closesocket(sock);   
                 break;
             }
+            if (strncmp(buffer, "CHAT:", 5) == 0) {
+                add_chat_message(buffer + 5);  // saltar el prefijo
+                refresh_chat_window();
+            } else {
+                // actualizar ventana de juego
+                werase(game_win);
+                box(game_win, 0, 0);
+                mvwprintw(game_win, 0, (COLS - 13) / 2, " AWALE-GAME ");
+                mvwprintw(game_win, 1, 2, "%s", buffer);
+                wrefresh(game_win);
+                mvwprintw(write_win, 1, 1, "                                                  "); 
+                mvwprintw(write_win, 1, 1, "> "); 
+                wmove(write_win, 1, 3); 
+                wrefresh(write_win);
+                
+            }
             buffer[n] = '\0';
-            printf("%s \n ", buffer);
         }
 
         // entrada del usuario
         if (FD_ISSET(STDIN_FILENO, &rdfs)) {
 
-            if (!fgets(buffer, sizeof(buffer), stdin)) break;
-            size_t L = strlen(buffer);
-            if (L > 0 && buffer[L-1] == '\n') buffer[L-1] = '\0';
-
             
-            if (strcmp(buffer, "/quit") == 0) {
+            werase(write_win);
+            box(write_win, 0, 0);
+            mvwprintw(write_win, 0, (COLS - 6) / 2, " >");
+            wrefresh(write_win);
+
+            echo();
+            mvwgetnstr(write_win, 1, 2, input, BUF_SIZE - 1);
+            noecho();
+
+            if (strcmp(input, "/quit") == 0) {
                 write_server(sock, "/quit");
                 break;
             }
 
-           
-            if (buffer[0] == '\n') continue;
-
-            
-            write_server(sock, buffer);
+            if (strlen(input) > 0)
+            write_server(sock, input);
+            mvwprintw(write_win, 1, 1, "                                                  "); 
+            mvwprintw(write_win, 1, 1, "> "); 
+            wmove(write_win, 1, 3); 
+            wrefresh(write_win);
         }
     }
 

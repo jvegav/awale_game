@@ -14,18 +14,18 @@ WINDOW *game_win, *chat_win, *write_win;
 char chat_history[MAX_CHAT_LINES][BUF_SIZE];
 int chat_count = 0;
 
-/* --- UI Setup --- */
+
 void init_ui() {
-    initscr();            // start ncurses mode
-    cbreak();             // disable line buffering
-    noecho();             // don’t echo input automatically
-    keypad(stdscr, TRUE); // enable arrow keys
+    initscr();            
+    cbreak();             
+    noecho();             
+    keypad(stdscr, TRUE); 
 
     int height = LINES;
     int width = COLS;
     int game_h = height * 6 / 12;
     int chat_h = height * 4 / 12;
-    int write_h = height - game_h - chat_h;     // bottom 1/10 of screen
+    int write_h = height - game_h - chat_h;    
 
     game_win = newwin(game_h, width, 0, 0);
     chat_win = newwin(chat_h, width, game_h, 0);
@@ -39,7 +39,7 @@ void init_ui() {
     mvwprintw(game_win, 0, (width - 13) / 2, " AWALE-GAME ");
     mvwprintw(chat_win, 0, (width - 6) / 2, " CHAT ");
     mvwprintw(write_win, 1, 1, "> ");
-    wmove(write_win, 1, 3);  // Mover cursor después de "> "
+    wmove(write_win, 1, 3);  
 
     wrefresh(game_win);
     wrefresh(chat_win);
@@ -51,7 +51,7 @@ void add_chat_message(const char *msg) {
     if (chat_count < MAX_CHAT_LINES) {
         strncpy(chat_history[chat_count++], msg, BUF_SIZE - 1);
     } else {
-        // scroll up if full
+       
         for (int i = 1; i < MAX_CHAT_LINES; i++)
             strcpy(chat_history[i - 1], chat_history[i]);
         strncpy(chat_history[MAX_CHAT_LINES - 1], msg, BUF_SIZE - 1);
@@ -116,10 +116,10 @@ int main(int argc, char **argv) {
                 break;
             }
             if (strncmp(buffer, "CHAT:", 5) == 0) {
-                add_chat_message(buffer + 5);  // saltar el prefijo
+                add_chat_message(buffer + 5);  
                 refresh_chat_window();
             } else {
-                // actualizar ventana de juego
+                
                 werase(game_win);
                 box(game_win, 0, 0);
                 mvwprintw(game_win, 0, (COLS - 13) / 2, " AWALE-GAME ");
